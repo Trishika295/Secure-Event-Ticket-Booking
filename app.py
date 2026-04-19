@@ -4,6 +4,7 @@ import qrcode
 import io
 import pandas as pd
 from PIL import Image
+import uuid
 
 # ----- Blockchain Classes ---------------
 class Block:
@@ -24,7 +25,7 @@ class Blockchain:
         self.chain = [self.create_genesis_block()]
 
     def create_genesis_block(self):
-        return Block(0, "Genesis Event", "System", "0")
+        return Block("GENESIS", "Genesis Event", "System", "0")
 
     def add_block(self, ticket_id, event, user):
         prev_block = self.chain[-1]
@@ -32,10 +33,12 @@ class Blockchain:
         self.chain.append(new_block)
 
     def verify_ticket(self, ticket_id):
-        return any(block.ticket_id == ticket_id for block in self.chain)
+        for block in self.chain[1:]:
+            if block.ticket_id == ticket_id:
+                return True, block.hash
+        return False, None
 
 # ---------- Main categories with background images -----------------
-
 backgrounds = {
     "Entertainment Events": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1600&q=80",
     "Sports Events": "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1600&q=80",
@@ -46,7 +49,6 @@ backgrounds = {
 }
 
 # ------------ Sub-events per category ------------------
-
 sub_events = {
     "Entertainment Events": ["Concerts", "Stand-up Comedy", "Theatre Plays", "Movie Premieres"],
     "Sports Events": ["Football Match", "Hockey", "Badminton", "Cricket"],
@@ -57,7 +59,6 @@ sub_events = {
 }
 
 # -------------  Sidebar selection ------------------
-
 st.sidebar.title(" Event Categories")
 category = st.sidebar.selectbox("Choose Category", list(backgrounds.keys()))
 sub_event_choice = st.sidebar.selectbox("Choose Sub Event", sub_events[category])
@@ -74,10 +75,6 @@ st.markdown(
         align-items: center;
         color: white;
         margin-bottom: 20px;
-    }
-    .top-banner img {
-        width: 40px;
-        margin-right: 15px;
     }
     .top-banner h1 {
         margin: 0;
@@ -99,9 +96,7 @@ st.markdown(
 )
 
 # --------  Hero banner with category background -------------
-
 selected_bg = backgrounds[category]
-
 st.markdown(
     f"""
     <style>
@@ -130,64 +125,72 @@ st.markdown(
 )
 
 # --------  Form section below the image  ---------
-st.markdown(
-    """
-    <div style="background-color: rgba(255,255,255,0.95); padding: 25px; border-radius: 12px;">
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("<div style='background-color: rgba(255,255,255,0.95); padding: 25px; border-radius: 12px;'>", unsafe_allow_html=True)
 
+# Persist blockchain in session_state
 if "bc" not in st.session_state:
     st.session_state.bc = Blockchain()
 
 col1, col2 = st.columns(2)
 
+# Auto-generate unique ticket IDs
+def generate_ticket_id():
+    return f"t{len(st.session_state.bc.chain)}"
+    # Alternative: return f"t{uuid.uuid4().hex[:6]}"
+
 with col1:
     st.subheader("Book a Ticket")
     user_name = st.text_input("Enter Your Name")
-    ticket_id = st.text_input("Enter Ticket ID")
     if st.button("Book Ticket"):
-        if ticket_id and user_name:
+        if user_name:
+            ticket_id = generate_ticket_id()
             st.session_state.bc.add_block(ticket_id, f"{category} - {sub_event_choice}", user_name)
             st.success(f"Ticket {ticket_id} booked for {sub_event_choice}!")
+
+            # Show updated tickets immediately
+            data = [
+                {"Ticket ID": b.ticket_id, "Event": b.event, "User": b.user, "Hash": b.hash[:10]+"..."}
+                for b in st.session_state.bc.chain[1:]
+            ]
+            st.dataframe(pd.DataFrame(data))
         else:
-            st.error("Please enter both Ticket ID and User Name.")
+            st.error("Please enter User Name.")
 
 with col2:
     st.subheader("Verify a Ticket")
     verify_id = st.text_input("Enter Ticket ID to Verify")
     if st.button("Verify Ticket"):
-        if st.session_state.bc.verify_ticket(verify_id):
-            st.success(" Ticket is valid!")
+        valid, hash_val = st.session_state.bc.verify_ticket(verify_id)
+        if valid:
+            st.success(f"Ticket {verify_id} is valid! Hash: {hash_val[:10]}...")
         else:
-            st.error(" Ticket not found.")
+            st.error("Ticket not found.")
 
 # -------  Show tickets in a table -----------
-
-if st.checkbox(" Show All Tickets"):
-    data = [
-        {"Ticket ID": b.ticket_id, "Event": b.event, "User": b.user, "Hash": b.hash[:10]+"..."}
-        for b in st.session_state.bc.chain[1:]
-    ]
-    if data:
-        st.dataframe(pd.DataFrame(data))
-    else:
-        st.info("No tickets booked yet.")
+st.subheader("Show All Tickets")
+data = [
+    {"Ticket ID": b.ticket_id, "Event": b.event, "User": b.user, "Hash": b.hash[:10]+"..."}
+    for b in st.session_state.bc.chain[1:]
+]
+if data:
+    st.dataframe(pd.DataFrame(data))
+else:
+    st.info("No tickets booked yet.")
 
 # -------  QR Code Generator --------------
-
 def generate_qr(ticket_id, event, user):
     data = f"TicketID:{ticket_id}, Event:{event}, User:{user}"
     qr = qrcode.make(data)
     return qr
 
-if st.button("Generate QR for Ticket"):
-    if ticket_id and user_name:
-        qr_img = generate_qr(ticket_id, f"{category} - {sub_event_choice}", user_name)
+if st.button("Generate QR for Last Ticket"):
+    if len(st.session_state.bc.chain) > 1:
+        last_block = st.session_state.bc.chain[-1]
+        qr_img = generate_qr(last_block.ticket_id, last_block.event, last_block.user)
         buf = io.BytesIO()
         qr_img.save(buf, format="PNG")
-        st.image(buf.getvalue(), caption=" Scan this QR to verify ticket", width=300)
+        st.image(buf.getvalue(), caption="Scan this QR to verify ticket", width=300)
     else:
-        st.error("Please enter Ticket ID and User Name first.")
+        st.error("No ticket booked yet.")
 
 st.markdown("</div>", unsafe_allow_html=True)
