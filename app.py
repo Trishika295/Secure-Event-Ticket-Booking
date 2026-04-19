@@ -95,7 +95,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --------  Hero banner with category background -------------
+# --------  Banner with category background -------------
 selected_bg = backgrounds[category]
 st.markdown(
     f"""
@@ -124,16 +124,14 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --------  Form section below the image  ---------
+# --------  Form section   ---------
 st.markdown("<div style='background-color: rgba(255,255,255,0.95); padding: 25px; border-radius: 12px;'>", unsafe_allow_html=True)
 
-# Persist blockchain in session_state
 if "bc" not in st.session_state:
     st.session_state.bc = Blockchain()
 
 col1, col2 = st.columns(2)
 
-# Auto-generate unique ticket IDs
 def generate_ticket_id():
     return f"t{len(st.session_state.bc.chain)}"
     # Alternative: return f"t{uuid.uuid4().hex[:6]}"
