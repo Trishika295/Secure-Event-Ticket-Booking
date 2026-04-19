@@ -31,4 +31,3 @@ BLOCKCHAIN/
 ## Live Demo
 Secure Event Ticket Booking:
 https://secure-event-ticket-booking-hp9hbchxjdntyz9spdydy8.streamlit.app/
-
