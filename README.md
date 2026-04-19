@@ -28,4 +28,7 @@ BLOCKCHAIN/
 3. Run the app:
    streamlit run app.py
 
+## Live Demo
+Secure Event Ticket Booking:
+https://secure-event-ticket-booking-hp9hbchxjdntyz9spdydy8.streamlit.app/
 
